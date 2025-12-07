@@ -1,6 +1,3 @@
-from last_fm_func import *
-
-
 def get_auth_header(token):
     return {"Authorization": "Bearer " + token}
 
