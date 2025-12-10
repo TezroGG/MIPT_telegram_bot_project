@@ -49,64 +49,66 @@ def get_genres_by_artist_id(id, token):
     params = {"fields": fields}
 
     resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 404:
+        return None
     resp.raise_for_status()
 
     return resp.json()["genres"]
 
 
 def get_tracks_from_playlist_json(playlist_id, token, market="ES"):
-    headers = get_auth_header(token)  # headers for all requests
+    headers = get_auth_header(token)  # headers для запросов
 
-    info_url = f"https://api.spotify.com/v1/playlists/{playlist_id}"  # url for get info about playlist
-    info_fields = "public,owner(display_name),description,name,id"  # data which I get about playlist
+    info_url = f"https://api.spotify.com/v1/playlists/{playlist_id}"  # url
+    info_fields = "public,owner(display_name),description,name,id"  # что хочу узнать о плейлисте
     info_params = {
         "market": market,
         "fields": info_fields
-    }  # dict to get info about playlist
-    playlist_resp = requests.get(info_url, headers=headers, params=info_params)  # get-request to collect playlist info
+    }  # словарь для получения инфы о треках
+    playlist_resp = requests.get(info_url, headers=headers, params=info_params)  # get запрос для информации о плейлисте
 
     try:
-        playlist_resp.raise_for_status()  # raise error if response != 200
+        playlist_resp.raise_for_status()  # ошибка если response != 200
     except requests.HTTPError as e:
         if playlist_resp.status_code == 404:
             return None
         else:
             raise e
 
-    playlist_info = playlist_resp.json()  # turn into json
+    playlist_info = playlist_resp.json()  # конвертация в json
     playlist_info["owner"] = playlist_info["owner"]["display_name"]  # упростил структуру словаря
 
     if playlist_info["public"] == "false":
         return None
 
-    tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"  # url for get tracks
-    track_fields = "items(track(id,name,artists(id,name),duration_ms,popularity,is_local,album(name))),next"  # data for each track
+    tracks_url = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"  # url
+    track_fields = "items(track(id,name,artists(id,name),duration_ms,popularity,is_local,album(name))),next"  # что хотим от каждого трека
     track_params = {
         "market": market,
         "fields": track_fields,
         "limit": 100
-    }  # dict to get tracks
-    all_tracks = []  # array with dicts with all tracks
+    }  # параметры для получения треков
+    all_tracks = []  # список словарей - треков
     while tracks_url:
         tracks_res = requests.get(tracks_url, headers=headers,
-                                  params=track_params)  # get-request to collect tracks on current page
+                                  params=track_params)  # запрос на получение треков с текущей страницы
 
-        if tracks_res.status_code == 429:  # if the app has exceeded its rate limits
+        if tracks_res.status_code == 429:  # если превысили время ожидания
             retry = int(tracks_res.headers.get("Retry-After", "1"))  # время ожидания
             time.sleep(retry)  # ждём
             continue  # следующая попытка
 
-        tracks_res.raise_for_status()  # raise error if response != 200
-        data = tracks_res.json()  # turn into json
-        add_tracks_genre(data, token)  # add genre for tracks by artists
+        tracks_res.raise_for_status()  # ошибка если response != 200
+        data = tracks_res.json()  # конвертация в json
+        add_tracks_genre(data, token)  # по артисту добавим жанры
 
         items = data.get("items",
                          [])  # Если в data есть ключ "items", то items станет data["items"] инчае items станет пустым списком []
-        all_tracks.extend(items)  # add tracks from current page to all tracks
+        all_tracks.extend(items)  # треки с текущей страницы ко всем трекам
 
-        tracks_url = data.get("next")  # go to the next page
+        tracks_url = data.get("next")  # переход на следующую страницу
 
-    playlist_info["total"] = len(all_tracks)  # get total count of tracks and add to playlist_info
-    playlist_info["tracks"] = {"items": all_tracks}  # add tracks to playlist_info
+    playlist_info["total"] = len(all_tracks)  # добавим количество треков
+    playlist_info["tracks"] = {"items": all_tracks}  # добавим треки
 
     return playlist_info

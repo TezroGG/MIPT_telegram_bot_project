@@ -79,7 +79,7 @@ def most_popular_genre(data):
     for track in data["tracks"]["items"]:
         if track["track"] is None:
             continue
-        if not (track["track"]["is_local"]):
+        if not (track["track"]["is_local"]) and track["track"]["genres"] is not None:
             for genre in track["track"]["genres"]:
                 if genre not in genres:
                     genres[genre] = 1

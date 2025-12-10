@@ -45,8 +45,8 @@ def get_tracks_url_from_user(message):
         most_popular_track_genres_data = most_popular_genre(playlist_data)
         avg_duration = round(get_avg_duration_ms(playlist_data) / 60000.0, 2)
 
-        with open("tracks.json", "w", encoding="utf-8") as f:
-            json.dump(playlist_data, f, ensure_ascii=False, indent=4)
+        # with open("tracks.json", "w", encoding="utf-8") as f:
+        #     json.dump(playlist_data, f, ensure_ascii=False, indent=4)
 
         info_for_message = \
             (f"Название плейлиста: {playlist_data["name"]}\n"
