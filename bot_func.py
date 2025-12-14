@@ -71,3 +71,12 @@ async def dont_understand(update, context):
     await update.message.reply_text("Прости, я тебя не понимаю. Напиши /start")
 
 
+async def any_text_router(update, context, token):
+    text = (update.message.text or "").strip()
+    try:
+        extract_playlist_id(text)
+    except Exception:
+        await update.message.reply_text("Прости, я тебя не понимаю. Пришли ссылку на плейлист или /start.")
+        return
+
+    await get_tracks_url_from_user(update, context, token)
