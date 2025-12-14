@@ -68,10 +68,6 @@ async def error_message(update, context):
 
 
 async def dont_understand(update, context):
-    await update.message.reply_text("Прости, я тебя не понимаю. Напиши /start или /help")
+    await update.message.reply_text("Прости, я тебя не понимаю. Напиши /start")
 
-
-async def cancel(update, context):
-    await update.message.reply_text("Операция отменена. Напиши /start для начала")
-    return ConversationHandler.END
 

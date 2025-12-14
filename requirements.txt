@@ -1,3 +1,4 @@
+sqlalchemy
 numpy
 matplotlib
 anyio==4.11.0

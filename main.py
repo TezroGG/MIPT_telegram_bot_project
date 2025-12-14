@@ -1,22 +1,26 @@
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler
-from bot_func import start, get_tracks_url_from_user, dont_understand, cancel, error_message, WAITING_FOR_PLAYLIST
+from bot_func import start, get_tracks_url_from_user, dont_understand, error_message, WAITING_FOR_PLAYLIST
 from spotify_func import *
 import os
 import asyncio
 from dotenv import load_dotenv
 from telegram.request import HTTPXRequest
+from db import global_init
 
 load_dotenv()
 
 spotify_token = None
 
 
-async def initialize_token():
+async def init_all():
     global spotify_token
+    await global_init("cache.db")
     spotify_token = await get_token()
+
 
 async def get_token_wrapper(update, context):
     return await get_tracks_url_from_user(update, context, spotify_token)
+
 
 async def error_handler(update, context):
     if update and update.effective_message:
@@ -25,8 +29,9 @@ async def error_handler(update, context):
         except Exception:
             pass
 
+
 if __name__ == '__main__':
-    asyncio.run(initialize_token())
+    asyncio.run(init_all())
 
     request = HTTPXRequest(connect_timeout=20, read_timeout=40)
     application = Application.builder().token(os.getenv("BOT_TOKEN")).request(request).concurrent_updates(True).build()
@@ -37,7 +42,7 @@ if __name__ == '__main__':
             states={
                 WAITING_FOR_PLAYLIST: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_token_wrapper)]
             },
-            fallbacks=[CommandHandler('cancel', cancel)],
+            fallbacks=[],
         )
 
         application.add_handler(conv_handler)

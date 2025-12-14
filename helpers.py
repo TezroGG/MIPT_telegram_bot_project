@@ -43,16 +43,19 @@ def albums_count(data):
 
 
 def most_popular_track(data):
-    track = ""
-    popularity = 0
+    top_track = ""
+    popularity = -1
     for track in data["tracks"]["items"]:
         if track["track"] is None:
             continue
-        if not (track["track"]["is_local"]) and track["track"]["popularity"] > popularity:
-            popularity = track["track"]["popularity"]
-        track = track["track"]["name"]
+        if track["track"]["is_local"]:
+            continue
 
-    return track, popularity
+        if track["track"]["popularity"] > popularity:
+            popularity = track["track"]["popularity"]
+            top_track = track["track"]["name"]
+
+    return top_track, popularity
 
 
 def get_avg_duration_ms(data):
