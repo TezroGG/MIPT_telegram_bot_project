@@ -32,6 +32,7 @@ async def error_handler(update, context):
 
 if __name__ == '__main__':
     asyncio.run(init_all())
+    print("Bot start")
 
     request = HTTPXRequest(connect_timeout=20, read_timeout=40)
     application = (Application.builder().token(os.getenv("BOT_TOKEN")).request(request).concurrent_updates(True).build())

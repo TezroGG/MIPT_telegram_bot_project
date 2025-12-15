@@ -1,3 +1,8 @@
+from collections import deque
+from lastfm_func import get_list_similar_tracks
+import random
+
+
 def get_auth_header(token):
     return {"Authorization": "Bearer " + token}
 
@@ -19,11 +24,12 @@ def artists_freq(data):
         if track["track"] is None:
             continue
         if not (track["track"]["is_local"]):
+            track_name = track["track"]["name"]
             for artist in track["track"]["artists"]:
                 if artist["name"] not in artists:
-                    artists[artist["name"]] = 1
+                    artists[artist["name"]] = [1, track_name]
                 else:
-                    artists[artist["name"]] += 1
+                    artists[artist["name"]][0] += 1
 
     return artists
 
@@ -42,20 +48,26 @@ def albums_count(data):
     return len(albums)
 
 
-def most_popular_track(data):
-    top_track = ""
-    popularity = -1
-    for track in data["tracks"]["items"]:
-        if track["track"] is None:
+def most_popular_tracks(data):
+    max_len = 5
+    top_tracks = deque()
+    for track_item in data["tracks"]["items"]:
+        track = track_item.get("track")
+        if track is None or track.get("is_local"):
             continue
-        if track["track"]["is_local"]:
-            continue
+        popularity = track["popularity"]
+        track_name = track["name"]
+        track_artists = track["artists"][0]["name"]
 
-        if track["track"]["popularity"] > popularity:
-            popularity = track["track"]["popularity"]
-            top_track = track["track"]["name"]
+        if popularity > -1:
+            candidate = (popularity, track_name, track_artists)
 
-    return top_track, popularity
+            if len(top_tracks) < max_len or popularity > top_tracks[0][0]:
+                top_tracks.append(candidate)
+                if len(top_tracks) > max_len:
+                    top_tracks.popleft()
+
+    return sorted(top_tracks, key=lambda x: x[0], reverse=True)
 
 
 def get_avg_duration_ms(data):
@@ -94,6 +106,18 @@ def most_popular_genre(data):
 
 def most_popular_genre_output(data):
     if len(data) == 0:
-        return "не удалось узанать жанры треков из плейлиста"
+        return "не удалось узнать жанры треков из плейлиста"
     else:
         return max(data, key=data.get)
+
+
+async def get_recommendations(most_popular_tracks_data, playlist_data, count=5):
+    playlist_track_names = {t["track"]["name"].lower() for t in playlist_data["tracks"]["items"] if t.get("track") and not t["track"].get("is_local")}
+    similar_tracks = await get_list_similar_tracks(most_popular_tracks_data)
+    recommendations = random.sample([track for track in similar_tracks if track.lower() not in playlist_track_names], k=count)
+    return recommendations
+
+
+def extend_mpt_data(data, new):
+    if new[2] not in [(t[2]) for t in data]:
+        data.append(new)

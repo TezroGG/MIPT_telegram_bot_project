@@ -2,6 +2,8 @@ from dotenv import load_dotenv
 from telegram.ext import ConversationHandler
 from spotify_func import get_tracks_from_playlist_json
 from helpers import *
+from helpers import get_recommendations
+
 
 load_dotenv()
 
@@ -36,7 +38,7 @@ async def get_tracks_url_from_user(update, context, token):
             return ConversationHandler.END
 
         artists_freq_dictionary = artists_freq(playlist_data)
-        most_popular_track_data = most_popular_track(playlist_data)
+        most_popular_tracks_data = most_popular_tracks(playlist_data)
         albums = albums_count(playlist_data)
         most_popular_track_genres_data = most_popular_genre(playlist_data)
         avg_duration = round(get_avg_duration_ms(playlist_data) / 60000.0, 2)
@@ -44,15 +46,19 @@ async def get_tracks_url_from_user(update, context, token):
         description = playlist_data['description'] if len(playlist_data['description']) > 0 else 'без описания'
         max_artist = max(artists_freq_dictionary, key=artists_freq_dictionary.get)
 
+        extend_mpt_data(most_popular_tracks_data, (0, artists_freq_dictionary[max_artist][1], max_artist))
+        recommendations = await get_recommendations(most_popular_tracks_data, playlist_data, 5)
+
         info_for_message = (
             f"Название плейлиста: {playlist_data['name']}\n"
             f"Автор: {playlist_data['owner']}\n"
             f"Описание: {description}\n"
             f"Всего {playlist_data['total']} треков из {albums} альбомов от {len(artists_freq_dictionary)} исполнителей\n"
-            f'Самый популярный трек: "{most_popular_track_data[0]}"\n'
-            f"Самый популярный исполнитель: {max_artist}, треков: {artists_freq_dictionary[max_artist]}\n"
+            f'Самый популярный трек: "{most_popular_tracks_data[0][1]}"\n'
+            f"Самый популярный исполнитель: {max_artist}, треков: {artists_freq_dictionary[max_artist][0]}\n"
             f"Самый популярный жанр: {most_popular_genre_output(most_popular_track_genres_data)}\n"
-            f"Средняя продолжительность трека: {avg_duration} {plural_minutes(avg_duration)}"
+            f"Средняя продолжительность трека: {avg_duration} {plural_minutes(avg_duration)}\n"
+            f"Рекомендованные треки: {"треков очень много, нечего рекомендовать" if len(recommendations) == 0 else ', '.join(recommendations)}\n"
         )
 
         await prev_message.edit_text(info_for_message)
@@ -61,7 +67,8 @@ async def get_tracks_url_from_user(update, context, token):
     except Exception as e:
         await update.message.reply_text("Неизвестная ошибка попробуйте ещё раз")
         print(f"Неизвестная ошибка: {e}")
-        raise e # удалить после релиза!!!
+        raise e  # удалить после релиза!!!
+
 
 async def error_message(update, context):
     await update.message.reply_text("Неизвестная ошибка попробуйте ещё раз")
