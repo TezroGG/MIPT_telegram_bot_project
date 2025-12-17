@@ -27,7 +27,7 @@ class TrackCache(SqlAlchemyBase):
     genres = sa.Column(sa.JSON, nullable=True)
 
 
-async def global_init(db_file):
+async def db_init(db_file):
     global __factory, __engine
 
     if __factory is not None:

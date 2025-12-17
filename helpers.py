@@ -10,7 +10,7 @@ def get_auth_header(token):
 def extract_playlist_id(playlist_url):
     if "https://open.spotify.com/playlist/" in playlist_url:
         playlist_id = (playlist_url.split("/")[-1]).split("?")[0]
-        if len(playlist_id) > 0:
+        if len(playlist_id) == 22:
             return playlist_id
         else:
             raise ValueError("Invalid playlist URL")
@@ -113,7 +113,7 @@ def most_popular_genre_output(data):
 
 async def get_recommendations(most_popular_tracks_data, playlist_data, count=5):
     playlist_track_names = {t["track"]["name"].lower() for t in playlist_data["tracks"]["items"] if t.get("track") and not t["track"].get("is_local")}
-    similar_tracks = await get_list_similar_tracks(most_popular_tracks_data)
+    similar_tracks = set(await get_list_similar_tracks(most_popular_tracks_data))
     recommendations = random.sample([track for track in similar_tracks if track.lower() not in playlist_track_names], k=count)
     return recommendations
 

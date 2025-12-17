@@ -67,7 +67,6 @@ async def get_tracks_url_from_user(update, context, token):
     except Exception as e:
         await update.message.reply_text("Неизвестная ошибка попробуйте ещё раз")
         print(f"Неизвестная ошибка: {e}")
-        raise e  # удалить после релиза!!!
 
 
 async def error_message(update, context):
