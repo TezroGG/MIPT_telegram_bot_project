@@ -4,7 +4,7 @@
 
 ## Стек
 
-- Python 3.10+ (рекомендуется 3.11+)
+- Python 
 - python-telegram-bot
 - `aiohttp` (асинхронные запросы)
 - `SQLAlchemy` + `aiosqlite` (асинхронный SQLite кэш)

@@ -6,6 +6,7 @@ load_dotenv()
 
 lastfm_api_key = os.getenv('LASTFM_API_KEY')
 
+
 async def get_list_similar_tracks(tracks):
     similar_tracks = []
     async with aiohttp.ClientSession() as session:
@@ -16,6 +17,7 @@ async def get_list_similar_tracks(tracks):
             similar_tracks += similar
 
     return similar_tracks
+
 
 async def get_similar_track(track_name, artist_name, session):
     url = "http://ws.audioscrobbler.com/2.0/"

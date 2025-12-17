@@ -47,18 +47,21 @@ async def get_tracks_url_from_user(update, context, token):
         max_artist = max(artists_freq_dictionary, key=artists_freq_dictionary.get)
 
         extend_mpt_data(most_popular_tracks_data, (0, artists_freq_dictionary[max_artist][1], max_artist))
-        recommendations = await get_recommendations(most_popular_tracks_data, playlist_data, 5)
+        recommendations = await get_recommendations(most_popular_tracks_data, playlist_data)
 
         info_for_message = (
-            f"Название плейлиста: {playlist_data['name']}\n"
-            f"Автор: {playlist_data['owner']}\n"
-            f"Описание: {description}\n"
-            f"Всего {playlist_data['total']} треков из {albums} альбомов от {len(artists_freq_dictionary)} исполнителей\n"
-            f'Самый популярный трек: "{most_popular_tracks_data[0][1]}"\n'
-            f"Самый популярный исполнитель: {max_artist}, треков: {artists_freq_dictionary[max_artist][0]}\n"
-            f"Самый популярный жанр: {most_popular_genre_output(most_popular_track_genres_data)}\n"
-            f"Средняя продолжительность трека: {avg_duration} {plural_minutes(avg_duration)}\n"
-            f"Рекомендованные треки: {"треков очень много, нечего рекомендовать" if len(recommendations) == 0 else ', '.join(recommendations)}\n"
+            f"🎧 Название: {playlist_data['name']}\n"
+            f"👤 Автор: {playlist_data['owner']}\n"
+            f"📝 Описание: {description or '—'}\n\n"
+            f"📊 Статистика:\n"
+            f"• {playlist_data['total']} треков\n"
+            f"• {albums} альбомов\n"
+            f"• {len(artists_freq_dictionary)} исполнителей\n\n"
+            f"🎵 Топ-трек: {most_popular_tracks_data[0][1]}\n"
+            f"👑 Топ-исполнитель: {max_artist} ({artists_freq_dictionary[max_artist][0]} треков)\n"
+            f"🎸 Топ-жанр: {most_popular_genre_output(most_popular_track_genres_data)}\n"
+            f"⏱️ Средняя длительность: {avg_duration} {plural_minutes(avg_duration)}\n\n"
+            f"🎁 Рекомендации:\n" + ("треков очень много, нечего рекомендовать" if len(recommendations) == 0 else '\n'.join([f"{i + 1}. {track}" for i, track in enumerate(recommendations)]))
         )
 
         await prev_message.edit_text(info_for_message)
