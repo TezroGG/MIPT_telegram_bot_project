@@ -1,6 +1,7 @@
 from collections import deque
 from lastfm_func import get_list_similar_tracks
 import random
+from db import add_playlist_data, save_user_history, create_session
 
 
 def get_auth_header(token):
@@ -121,3 +122,10 @@ async def get_recommendations(most_popular_tracks_data, playlist_data, count=5):
 def extend_mpt_data(data, new):
     if new[2] not in [(t[2]) for t in data]:
         data.append(new)
+
+
+async def save_full_history(user_id, playlist_id, playlist_data, playlist_name):
+    async with create_session() as session:
+        await save_user_history(session, user_id, playlist_id)
+        await add_playlist_data(session, playlist_data, playlist_id, playlist_name)
+        await session.commit()

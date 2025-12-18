@@ -1,18 +1,23 @@
 from dotenv import load_dotenv
+from telegram import ReplyKeyboardMarkup
 from telegram.ext import ConversationHandler
 from spotify_func import get_tracks_from_playlist_json
 from helpers import *
-from helpers import get_recommendations
-
+from helpers import get_recommendations, save_full_history
+from db import create_session, get_user_history, get_playlist_history
 
 load_dotenv()
 
-WAITING_FOR_PLAYLIST = 1
+HISTORY_CHOICE = 1
 
+default_keyboard = ReplyKeyboardMarkup(
+    keyboard=[["/start", "/history"]],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
 
 async def start(update, context):
-    await update.message.reply_text("Отправь ссылку на плейлист")
-    return WAITING_FOR_PLAYLIST
+    await update.message.reply_text("Отправь ссылку на плейлист", reply_markup=default_keyboard)
 
 
 async def get_tracks_url_from_user(update, context, token):
@@ -23,7 +28,6 @@ async def get_tracks_url_from_user(update, context, token):
         except Exception as e:
             await update.message.reply_text("Неверная ссылка. Отправь новую ссылку")
             print(f"Ошибка принятия ссылки: {e}")
-            return WAITING_FOR_PLAYLIST
 
         prev_message = await update.message.reply_text("Получаю информацию...")
 
@@ -31,11 +35,11 @@ async def get_tracks_url_from_user(update, context, token):
 
         if playlist_data is None:
             await prev_message.edit_text("Плейлист недоступен")
-            return ConversationHandler.END
+            return
 
         if playlist_data["total"] == 0:
             await prev_message.edit_text("Ничего не могу сказать про пустой плейлист")
-            return ConversationHandler.END
+            return
 
         artists_freq_dictionary = artists_freq(playlist_data)
         most_popular_tracks_data = most_popular_tracks(playlist_data)
@@ -61,11 +65,14 @@ async def get_tracks_url_from_user(update, context, token):
             f"👑 Топ-исполнитель: {max_artist} ({artists_freq_dictionary[max_artist][0]} треков)\n"
             f"🎸 Топ-жанр: {most_popular_genre_output(most_popular_track_genres_data)}\n"
             f"⏱️ Средняя длительность: {avg_duration} {plural_minutes(avg_duration)}\n\n"
-            f"🎁 Рекомендации:\n" + ("треков очень много, нечего рекомендовать" if len(recommendations) == 0 else '\n'.join([f"{i + 1}. {track}" for i, track in enumerate(recommendations)]))
+            f"🎁 Рекомендации:\n" + (
+                "треков очень много, нечего рекомендовать" if len(recommendations) == 0 else '\n'.join(
+                    [f"{i + 1}. {track}" for i, track in enumerate(recommendations)]))
         )
 
+        user_id = str(update.message.chat.id)
+        await save_full_history(user_id, playlist_id, info_for_message, playlist_data['name'])
         await prev_message.edit_text(info_for_message)
-        return ConversationHandler.END
 
     except Exception as e:
         await update.message.reply_text("Неизвестная ошибка попробуйте ещё раз")
@@ -89,3 +96,59 @@ async def any_text_router(update, context, token):
         return
 
     await get_tracks_url_from_user(update, context, token)
+
+
+async def history(update, context):
+    user_id = str(update.effective_chat.id)
+
+    async with create_session() as session:
+        items = await get_user_history(session, user_id)
+
+    if len(items) > 0:
+        context.user_data["history_items"] = items
+
+        playlist_buttons = [[name] for name in items.keys()]
+        playlist_buttons.append(["/start", "/history", "/cancel"])
+
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=playlist_buttons if len(items) > 0 else [["/start", "/history", "/cancel"]],
+            resize_keyboard=True,
+            one_time_keyboard=False,
+        )
+
+        await update.message.reply_text("Выберите название плейлиста для просмотра информации о нём", reply_markup=keyboard)
+        return HISTORY_CHOICE
+
+    else:
+        await update.message.reply_text("История пуста. Отправьте ссылку на плейлист через /start.", reply_markup=default_keyboard)
+        return ConversationHandler.END
+
+
+async def history_choice(update, context):
+    text = (update.message.text or "").strip()
+
+    if text == "/start":
+        return await start(update, context)
+    if text == "/history":
+        return await history(update, context)
+    if text == "/cancel":
+        return await cancel(update, context)
+
+    items = context.user_data.get("history_items")
+    playlist_id = items.get(text)
+
+    if playlist_id is None:
+        await update.message.reply_text("Неверное название плейлиста")
+        return HISTORY_CHOICE
+
+    async with create_session() as session:
+        data = await get_playlist_history(session, playlist_id)
+
+
+    await update.message.reply_text(data, reply_markup=default_keyboard)
+    return ConversationHandler.END
+
+
+async def cancel(update, context):
+    await update.message.reply_text("Отправь ссылку на плейлист", reply_markup=default_keyboard)
+    return ConversationHandler.END

@@ -1,5 +1,5 @@
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-from bot_func import start, any_text_router
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler
+from bot_func import start, any_text_router, history, HISTORY_CHOICE, cancel, history_choice
 from spotify_func import get_token
 import os
 import asyncio
@@ -31,6 +31,20 @@ if __name__ == '__main__':
         Application.builder().token(os.getenv("BOT_TOKEN")).request(request).concurrent_updates(True).build())
 
     application.add_handler(CommandHandler(['start', 'help'], start))
+
+    conv_history = ConversationHandler(
+        entry_points=[CommandHandler("history", history)],
+        states={
+            HISTORY_CHOICE: [
+                CommandHandler("cancel", cancel),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, history_choice),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True,
+    )
+
+    application.add_handler(conv_history)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, any_text_router_wrapper))
 
     application.run_polling()

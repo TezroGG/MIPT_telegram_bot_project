@@ -1,6 +1,6 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 SqlAlchemyBase = orm.declarative_base()
@@ -27,6 +27,19 @@ class TrackCache(SqlAlchemyBase):
     genres = sa.Column(sa.JSON, nullable=True)
 
 
+class UsersHistory(SqlAlchemyBase):
+    __tablename__ = "users_history"
+    user_id = sa.Column(sa.String, primary_key=True)
+    playlist_id = sa.Column(sa.String, primary_key=True)
+
+
+class PlaylistData(SqlAlchemyBase):
+    __tablename__ = "playlist_data"
+    playlist_id = sa.Column(sa.String, primary_key=True)
+    playlist_name = sa.Column(sa.String, nullable=True)
+    playlist_data = sa.Column(sa.String, nullable=True)
+
+
 async def db_init(db_file):
     global __factory, __engine
 
@@ -49,6 +62,35 @@ def create_session():
     if __factory is None:
         raise Exception("База данных не инициализирована.")
     return __factory()
+
+
+async def add_playlist_data(session, playlist_data, playlist_id, playlist_name):
+    row = await session.scalar(select(PlaylistData).where(PlaylistData.playlist_id == playlist_id))
+    if row is None:
+        session.add(PlaylistData(playlist_id=playlist_id, playlist_data=playlist_data, playlist_name=playlist_name))
+    else:
+        row.playlist_data = playlist_data
+        row.playlist_name = playlist_name
+
+
+async def save_user_history(session, user_id, playlist_id):
+    row = await session.scalar(select(UsersHistory).where(and_(UsersHistory.user_id == user_id, UsersHistory.playlist_id == playlist_id)))
+    if row is None:
+        session.add(UsersHistory(user_id=user_id, playlist_id=playlist_id))
+
+
+async def get_user_history(session, user_id):
+    result = await session.execute(
+        select(UsersHistory.playlist_id, PlaylistData.playlist_name)
+        .join(PlaylistData, UsersHistory.playlist_id == PlaylistData.playlist_id)
+        .where(UsersHistory.user_id == user_id)
+    )
+    return {row.playlist_name: row.playlist_id for row in result.all()}
+
+
+async def get_playlist_history(session, playlist_id):
+    row = await session.scalar(select(PlaylistData).where(PlaylistData.playlist_id == playlist_id))
+    return row.playlist_data if row else None
 
 
 async def get_artist_genres_cached(session, artist_id):
