@@ -1,7 +1,9 @@
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from sqlalchemy import select, and_
+from sqlalchemy.sql import func
+from sqlalchemy import select, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from datetime import datetime, timezone
 
 SqlAlchemyBase = orm.declarative_base()
 
@@ -31,10 +33,11 @@ class UsersHistory(SqlAlchemyBase):
     __tablename__ = "users_history"
     user_id = sa.Column(sa.String, primary_key=True)
     playlist_id = sa.Column(sa.String, primary_key=True)
+    last_ref = sa.Column(sa.DateTime, nullable=True)
 
 
-class PlaylistData(SqlAlchemyBase):
-    __tablename__ = "playlist_data"
+class PlaylistDataHistory(SqlAlchemyBase):
+    __tablename__ = "playlist_data_history"
     playlist_id = sa.Column(sa.String, primary_key=True)
     playlist_name = sa.Column(sa.String, nullable=True)
     playlist_data = sa.Column(sa.String, nullable=True)
@@ -50,7 +53,7 @@ async def db_init(db_file):
         raise Exception("Необходимо указать файл базы данных.")
 
     conn_str = f"sqlite+aiosqlite:///{db_file}"
-    __engine = create_async_engine(conn_str, echo=False, future=True)
+    __engine = create_async_engine(conn_str, echo=False, future=True, connect_args={"timeout": 30}) # 30 секунд при конфликте блокировок
     __factory = async_sessionmaker(bind=__engine, expire_on_commit=False, class_=AsyncSession)
 
     async with __engine.begin() as conn:
@@ -65,9 +68,9 @@ def create_session():
 
 
 async def add_playlist_data(session, playlist_data, playlist_id, playlist_name):
-    row = await session.scalar(select(PlaylistData).where(PlaylistData.playlist_id == playlist_id))
+    row = await session.scalar(select(PlaylistDataHistory).where(PlaylistDataHistory.playlist_id == playlist_id))
     if row is None:
-        session.add(PlaylistData(playlist_id=playlist_id, playlist_data=playlist_data, playlist_name=playlist_name))
+        session.add(PlaylistDataHistory(playlist_id=playlist_id, playlist_data=playlist_data, playlist_name=playlist_name))
     else:
         row.playlist_data = playlist_data
         row.playlist_name = playlist_name
@@ -75,21 +78,28 @@ async def add_playlist_data(session, playlist_data, playlist_id, playlist_name):
 
 async def save_user_history(session, user_id, playlist_id):
     row = await session.scalar(select(UsersHistory).where(and_(UsersHistory.user_id == user_id, UsersHistory.playlist_id == playlist_id)))
+    now = datetime.now(timezone.utc)
+    ref_max_count = 10
     if row is None:
-        session.add(UsersHistory(user_id=user_id, playlist_id=playlist_id))
+        session.add(UsersHistory(user_id=user_id, playlist_id=playlist_id, last_ref=now))
+        count = await session.scalar(select(func.count(UsersHistory.user_id)).where(UsersHistory.user_id == user_id))
+        if count > ref_max_count:
+            await session.execute(delete(UsersHistory).where(and_(UsersHistory.user_id == user_id, UsersHistory.last_ref == select(func.min(UsersHistory.last_ref)).where(UsersHistory.user_id == user_id).scalar_subquery())))
+    else:
+        row.last_ref = now
 
 
 async def get_user_history(session, user_id):
     result = await session.execute(
-        select(UsersHistory.playlist_id, PlaylistData.playlist_name)
-        .join(PlaylistData, UsersHistory.playlist_id == PlaylistData.playlist_id)
+        select(UsersHistory.playlist_id, PlaylistDataHistory.playlist_name)
+        .join(PlaylistDataHistory, UsersHistory.playlist_id == PlaylistDataHistory.playlist_id)
         .where(UsersHistory.user_id == user_id)
     )
     return {row.playlist_name: row.playlist_id for row in result.all()}
 
 
 async def get_playlist_history(session, playlist_id):
-    row = await session.scalar(select(PlaylistData).where(PlaylistData.playlist_id == playlist_id))
+    row = await session.scalar(select(PlaylistDataHistory).where(PlaylistDataHistory.playlist_id == playlist_id))
     return row.playlist_data if row else None
 
 

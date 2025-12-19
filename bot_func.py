@@ -16,6 +16,7 @@ default_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=False
 )
 
+
 async def start(update, context):
     await update.message.reply_text("Отправь ссылку на плейлист", reply_markup=default_keyboard)
 
@@ -98,8 +99,12 @@ async def any_text_router(update, context, token):
     await get_tracks_url_from_user(update, context, token)
 
 
+def chunk(items, size):
+    return [items[i:i + size] for i in range(0, len(items), size)]
+
+
 async def history(update, context):
-    user_id = str(update.effective_chat.id)
+    user_id = str(update.message.chat.id)
 
     async with create_session() as session:
         items = await get_user_history(session, user_id)
@@ -107,7 +112,16 @@ async def history(update, context):
     if len(items) > 0:
         context.user_data["history_items"] = items
 
-        playlist_buttons = [[name] for name in items.keys()]
+        names = list(items.keys())
+        n = len(names)
+        if n <= 3:
+            per_row = 1
+        elif n <= 6:
+            per_row = 2
+        else:
+            per_row = 3
+
+        playlist_buttons = chunk(names, per_row)
         playlist_buttons.append(["/start", "/history", "/cancel"])
 
         keyboard = ReplyKeyboardMarkup(
@@ -116,23 +130,18 @@ async def history(update, context):
             one_time_keyboard=False,
         )
 
-        await update.message.reply_text("Выберите название плейлиста для просмотра информации о нём", reply_markup=keyboard)
+        await update.message.reply_text("Выберите название плейлиста для просмотра информации о нём",
+                                        reply_markup=keyboard)
         return HISTORY_CHOICE
 
     else:
-        await update.message.reply_text("История пуста. Отправьте ссылку на плейлист через /start.", reply_markup=default_keyboard)
+        await update.message.reply_text("История пуста. Отправьте ссылку на плейлист",
+                                        reply_markup=default_keyboard)
         return ConversationHandler.END
 
 
 async def history_choice(update, context):
     text = (update.message.text or "").strip()
-
-    if text == "/start":
-        return await start(update, context)
-    if text == "/history":
-        return await history(update, context)
-    if text == "/cancel":
-        return await cancel(update, context)
 
     items = context.user_data.get("history_items")
     playlist_id = items.get(text)
@@ -142,8 +151,10 @@ async def history_choice(update, context):
         return HISTORY_CHOICE
 
     async with create_session() as session:
+        user_id = str(update.message.chat.id)
         data = await get_playlist_history(session, playlist_id)
-
+        await save_user_history(session, user_id, playlist_id)
+        await session.commit()
 
     await update.message.reply_text(data, reply_markup=default_keyboard)
     return ConversationHandler.END

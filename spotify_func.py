@@ -117,8 +117,8 @@ async def get_tracks_from_playlist_json(playlist_id, token, market="ES"):
                         all_tracks.extend(items)  # треки с текущей страницы ко всем трекам
                         tracks_url = data.get("next")  # переход на следующую страницу
                         track_params = {}  # next URL уже содержит нужные параметры
+                        await session_db.commit()  # делаем commit в бд (каждая страница)
                         break  # выход из цикла повторных попыток при успехе
-            await session_db.commit()  # делаем commit в бд
 
     playlist_info["total"] = len(all_tracks)  # добавим количество треков
     playlist_info["tracks"] = {"items": all_tracks}  # добавим треки
